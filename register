@@ -1,0 +1,67 @@
+const express = require('express');
+const session = require('express-session');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
+const mongoose = require('mongoose');
+const User = require('./models/User'); // Define your user model
+
+const app = express();
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(session({
+  secret: 'your_secret_key',
+  resave: false,
+  saveUninitialized: false
+}));
+
+// Connect to MongoDB
+mongoose.connect('mongodb://localhost:27017/your_database', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('MongoDB connected'))
+  .catch(err => console.log(err));
+
+// Login endpoint
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username });
+
+  if (!user || !bcrypt.compareSync(password, user.password)) {
+    return res.status(401).send('Invalid username or password');
+  }
+
+  req.session.user = user;
+  res.redirect('/dashboard');
+});
+
+// Registration endpoint
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  const hashedPassword = bcrypt.hashSync(password, 10);
+
+  try {
+    const newUser = await User.create({ username, password: hashedPassword });
+    req.session.user = newUser;
+    res.redirect('/dashboard');
+  } catch (err) {
+    res.status(500).send('Error registering user');
+  }
+});
+
+// Logout endpoint
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/');
+});
+
+// Example API endpoint to fetch mining product data
+app.get('/products', (req, res) => {
+  const products = [
+    { name: 'Chrome', price: '$200 per ton' },
+    { name: 'Iron Ore', price: '$90 per ton' },
+    { name: 'Manganese', price: '$149 per ton' }
+  ];
+  res.json(products);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
